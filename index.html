@@ -435,8 +435,8 @@
 </div>
 
 <script>
-// À mettre au début de ta balise <script> dans index.html sur GitHub
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_usgl4KcS4_XyN7HpWOOqrCVoXA5nmJMafYWbOAURw-1kFrqQRwb9HOXf2sWNE6SE/exec"; 
+const SCRIPT_URL_BASE = "https://script.google.com/macros/s/AKfycbz_usgl4KcS4_XyN7HpWOOqrCVoXA5nmJMafYWbOAURw-1kFrqQRwb9HOXf2sWNE6SE/exec";
+const SCRIPT_URL = "https://corsproxy.io/?" + encodeURIComponent(SCRIPT_URL_BASE);
 
 function save() {
   const data = JSON.stringify(DB);
