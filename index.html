@@ -435,6 +435,41 @@
 </div>
 
 <script>
+// À mettre au début de ta balise <script> dans index.html sur GitHub
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_usgl4KcS4_XyN7HpWOOqrCVoXA5nmJMafYWbOAURw-1kFrqQRwb9HOXf2sWNE6SE/exec"; 
+
+function save() {
+  const data = JSON.stringify(DB);
+  // Au lieu de google.script.run, on envoie les données par "fetch"
+  fetch(SCRIPT_URL + "?action=save", {
+    method: "POST",
+    body: data
+  }).then(res => console.log("Sauvegardé !"));
+}
+
+function loadFromServer() {
+  setSyncBar(true);
+  showSync('⟳ Chargement...');
+  
+  // On remplace google.script.run par un appel "fetch" vers ton URL
+  fetch(SCRIPT_URL + "?action=getData")
+    .then(response => response.json())
+    .then(data => {
+      fiches = data.fiches || [];
+      templates = data.templates || [];
+      processModels = data.processModels || [];
+      setSyncBar(false);
+      showSync('✓ Données chargées', 'ok');
+      document.getElementById('loadingScreen').style.display = 'none';
+      renderSidebar();
+      retourAListe();
+    })
+    .catch(error => {
+      console.error(error);
+      showSync('✗ Erreur de connexion', 'err');
+    });
+}
+
 // ══════════════════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════════════════
@@ -482,12 +517,24 @@ function loadFromServer() {
 function save() {
   clearTimeout(saveTimer);
   showSync('⟳ Sauvegarde...');
+  
   saveTimer = setTimeout(() => {
     setSyncBar(true);
-    google.script.run
-      .withSuccessHandler(() => { setSyncBar(false); showSync('✓ Synchronisé', 'ok'); })
-      .withFailureHandler(() => { setSyncBar(false); showSync('✗ Erreur de sauvegarde', 'err'); })
-      .setData({ fiches, templates, processModels });
+    const data = { fiches, templates, processModels };
+
+    fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    })
+    .then(res => res.json())
+    .then(res => {
+      setSyncBar(false);
+      if(res.ok) showSync('✓ Synchronisé', 'ok');
+    })
+    .catch(err => {
+      setSyncBar(false);
+      showSync('✗ Erreur de sauvegarde', 'err');
+    });
   }, 800);
 }
 
