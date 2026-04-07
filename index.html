@@ -492,28 +492,7 @@ function showSync(msg, type) {
 function setSyncBar(active) {
   document.getElementById('syncBar').classList.toggle('active', active);
 }
-function loadFromServer() {
-  setSyncBar(true);
-  showSync('⟳ Chargement...');
-  google.script.run
-    .withSuccessHandler(data => {
-      fiches = data.fiches || [];
-      templates = data.templates || [];
-      processModels = data.processModels || [];
-      setSyncBar(false);
-      showSync('✓ Données chargées', 'ok');
-      document.getElementById('loadingScreen').style.display = 'none';
-      renderSidebar();
-      retourAListe();
-    })
-    .withFailureHandler(() => {
-      setSyncBar(false);
-      showSync('✗ Erreur de chargement', 'err');
-      document.getElementById('loadingScreen').innerHTML =
-        '<p style="color:var(--red);padding:20px;text-align:center;">Erreur de connexion.<br>Recharge la page.</p>';
-    })
-    .getData();
-}
+
 function save() {
   clearTimeout(saveTimer);
   showSync('⟳ Sauvegarde...');
