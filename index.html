@@ -220,7 +220,8 @@
 </div>
 <script>
 // --- CONFIGURATION ---
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwmt8oo5fKmgJp2pnnUV8iwNKHyFz992kcGlvkuF7PIIzvrAc4mMaf2cJ4moije36q3/exec"; 
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyb97vVAcTcgEzYm-LnHa6TcE80yYWfU7y0eXfC3TP9D1WMqHHmEEO_1KJfCHzkRERq/exec";
+let loaded = false;
 
 let fiches = [];
 let templates = [];
@@ -241,11 +242,12 @@ function loadFromServer() {
   setSyncBar(true);
   showSync('⟳ Chargement...');
   fetch(SCRIPT_URL + "?action=getData")
-    .then(res => res.json())
+    .then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
     .then(data => {
       fiches = data.fiches || [];
       templates = data.templates || [];
       processModels = data.processModels || [];
+      loaded = true;
       setSyncBar(false);
       showSync('✓ Connecté', 'ok');
       document.getElementById('loadingScreen').style.display = 'none';
@@ -253,12 +255,17 @@ function loadFromServer() {
     })
     .catch(err => {
       console.error(err);
+      setSyncBar(false);
       showSync('✗ Erreur connexion', 'err');
+      document.getElementById('loadingScreen').innerHTML =
+        '<h2>Connexion impossible</h2><p>Le serveur ne répond pas.</p>' +
+        '<button class="btn-confirm" onclick="location.reload()">Réessayer</button>';
     });
 }
 
 function save() {
   clearTimeout(saveTimer);
+    if (!loaded) return;
   showSync('⟳ Sauvegarde...');
   saveTimer = setTimeout(() => {
     setSyncBar(true);
@@ -356,7 +363,7 @@ function updateCalcSurface() { const l = document.getElementById('calc-l').value
 function updateCalcVolume() { const s = document.getElementById('calc-s').value; const h = document.getElementById('calc-h').value; const volume = calcVolume(s, h); document.getElementById('res-volume').textContent = volume; const f = getFiche(); f.calculs.volume = { s, h }; save(); if (volume !== '—') { const v = document.getElementById('calc-vol-t'); if (v) { v.value = volume; updateCalcTonnage(); } } }
 function updateCalcTonnage() { const vol = document.getElementById('calc-vol-t').value; const densite = document.getElementById('calc-densite').value; document.getElementById('res-tonnage').textContent = calcTonnage(vol, densite); document.getElementById('res-tonnes').textContent = calcTonnes(vol, densite); const f = getFiche(); f.calculs.densite = densite; save(); }
 function updateCalcCustom(value) { const f = getFiche(); f.calculs.custom = value; save(); }
-function forceSave() { clearTimeout(saveTimer); setSyncBar(true); const data = { fiches, templates, processModels }; fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(data) }).then(res => res.json()).then(res => { setSyncBar(false); showSync('✓ Connecté', 'ok'); document.getElementById('loadingScreen').style.display = 'none'; renderSidebar(); }).catch(() => { setSyncBar(false); showSync('✗ Erreur', 'err'); }); const msg = document.getElementById('saveMsg'); if (msg) { msg.classList.add('visible'); setTimeout(() => msg.classList.remove('visible'), 2000); } }
+function forceSave() { clearTimeout(saveTimer); if (!loaded) return; setSyncBar(true); const data = { fiches, templates, processModels }; fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(data) }).then(res => res.json()).then(res => { setSyncBar(false); showSync('✓ Connecté', 'ok'); document.getElementById('loadingScreen').style.display = 'none'; renderSidebar(); }).catch(() => { setSyncBar(false); showSync('✗ Erreur', 'err'); }); const msg = document.getElementById('saveMsg'); if (msg) { msg.classList.add('visible'); setTimeout(() => msg.classList.remove('visible'), 2000); } }
 function deleteFiche(id) { openConfirmModal('Supprimer cette fiche ?', 'Cette action est irréversible.', () => { fiches = fiches.filter(x => x.id !== id); currentId = null; save(); renderSidebar(); retourAListe(); document.getElementById('mainContent').innerHTML = `<div class="empty-state"><div class="icon">🗂</div><h2>Aucune fiche ouverte</h2><p>Créez une nouvelle fiche de client/chantier pour démarrer.</p></div>`; }); }
 function openConfirmModal(title, msg, onConfirm) { document.getElementById('confirmTitle').textContent = title; document.getElementById('confirmMsg').textContent = msg; document.getElementById('confirmModal').style.display = 'flex'; document.getElementById('confirmOk').onclick = () => { closeConfirmModal(); onConfirm(); }; }
 function closeConfirmModal() { document.getElementById('confirmModal').style.display = 'none'; }
