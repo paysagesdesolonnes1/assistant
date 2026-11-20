@@ -248,6 +248,7 @@ function loadFromServer() {
     .then(data => {
       fiches = data.fiches || [];
       templates = data.templates || [];
+      templates.forEach(t => t.items && t.items.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base', numeric: true })));
       processModels = data.processModels || [];
       outils = data.outils || [];
       noteGenerale = data.noteGenerale || "";
@@ -417,13 +418,6 @@ function renderTemplateCard(t, ti, type) {
   return `<div class="tpl-card" id="${prefix}card-${ti}">
     <div class="tpl-card-header" onclick="toggleTplCard('${prefix}', ${ti})">
       <div class="tpl-card-name"><input type="text" value="${escHtml(t.name)}" placeholder="Nom du modèle..." onclick="event.stopPropagation()" oninput="updateTemplateName('${type}', ${ti}, this.value)"></div>
-      <div class="tpl-card-actions">
-        <span style="font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--muted);">${t.items.length} point${t.items.length > 1 ? 's' : ''}</span>
-       ${type === 'checklist' ? `<button class="btn-tpl-delete" onclick="event.stopPropagation();sortTplItems('checklist', ${ti})">A→Z</button>` : ''}
-        <button class="btn-tpl-delete" onclick="event.stopPropagation();duplicateTemplate('${type}', ${ti})">Dupliquer</button>
-        <button class="btn-tpl-delete" onclick="event.stopPropagation();deleteTemplate('${type}', ${ti})">Supprimer</button>
-        <span class="tpl-chevron" id="${prefix}chev-${ti}">▼</span>
-      </div>
     </div>
     <div class="tpl-card-body" id="${prefix}body-${ti}" style="display:none;">
       ${noteHtml}
@@ -466,12 +460,11 @@ function removeOutil(idx) {
 
 function pickOutilForTemplate(ti, val) {
   if (!val) return;
-  // Évite d'ajouter deux fois le même outil dans le modèle
   if (!templates[ti].items.some(it => it.toLowerCase() === val.toLowerCase())) {
     templates[ti].items.push(val);
+    templates[ti].items.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base', numeric: true }));
     save();
   }
-  // Rafraîchit la carte du modèle en la gardant ouverte
   const cardEl = document.getElementById(`tplcard-${ti}`);
   const tmp = document.createElement('div');
   tmp.innerHTML = renderTemplateCard(templates[ti], ti, 'checklist');
@@ -501,7 +494,24 @@ function duplicateTemplate(type, ti) {
 }
 function updateTemplateName(type, ti, name) { if (type === 'process') processModels[ti].name = name; else templates[ti].name = name; save(); }
 function addTplItem(type, ti) {
-  const prefix = type === 'process' ? 'proc' : 'tpl'; const arr = type === 'process' ? processModels : templates; const input = document.getElementById(`${prefix}add-${ti}`); const text = input.value.trim(); if (!text) return; arr[ti].items.push(text); save(); const cardEl = document.getElementById(`${prefix}card-${ti}`); const tmp = document.createElement('div'); tmp.innerHTML = renderTemplateCard(arr[ti], ti, type); cardEl.replaceWith(tmp.firstElementChild); document.getElementById(`${prefix}body-${ti}`).style.display = 'block'; document.getElementById(`${prefix}chev-${ti}`).classList.add('open'); const newInput = document.getElementById(`${prefix}add-${ti}`); if (newInput) newInput.focus();
+  const prefix = type === 'process' ? 'proc' : 'tpl';
+  const arr = type === 'process' ? processModels : templates;
+  const input = document.getElementById(`${prefix}add-${ti}`);
+  const text = input.value.trim();
+  if (!text) return;
+  arr[ti].items.push(text);
+  if (type === 'checklist') {
+    arr[ti].items.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base', numeric: true }));
+  }
+  save();
+  const cardEl = document.getElementById(`${prefix}card-${ti}`);
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderTemplateCard(arr[ti], ti, type);
+  cardEl.replaceWith(tmp.firstElementChild);
+  document.getElementById(`${prefix}body-${ti}`).style.display = 'block';
+  document.getElementById(`${prefix}chev-${ti}`).classList.add('open');
+  const newInput = document.getElementById(`${prefix}add-${ti}`);
+  if (newInput) newInput.focus();
 }
 function removeTplItem(type, ti, ii) { const prefix = type === 'process' ? 'proc' : 'tpl'; const arr = type === 'process' ? processModels : templates; arr[ti].items.splice(ii, 1); save(); const body = document.getElementById(`${prefix}body-${ti}`); const wasOpen = body.style.display !== 'none'; const tmp = document.createElement('div'); tmp.innerHTML = renderTemplateCard(arr[ti], ti, type); document.getElementById(`${prefix}card-${ti}`).replaceWith(tmp.firstElementChild); if (wasOpen) { document.getElementById(`${prefix}body-${ti}`).style.display = 'block'; document.getElementById(`${prefix}chev-${ti}`).classList.add('open'); } }
 function updateTplItem(type, ti, ii, value) { if (type === 'process') processModels[ti].items[ii] = value; else templates[ti].items[ii] = value; save(); }
@@ -568,10 +578,38 @@ function openConfirmModal(title, msg, onConfirm) { document.getElementById('conf
 function closeConfirmModal() { document.getElementById('confirmModal').style.display = 'none'; }
 function removeUsedTemplate(idx) {
   const f = getFiche();
-  const removed = f.usedTemplates.splice(idx, 1)[0];
-  if (f.templateNotes && removed) {
-    f.templateNotes = f.templateNotes.filter(x => x.name !== removed);
+  const removedName = f.usedTemplates.splice(idx, 1)[0];
+  if (!removedName) return;
+
+  // 1. Retirer la note de ce modèle si elle existe
+  if (f.templateNotes) {
+    f.templateNotes = f.templateNotes.filter(x => x.name !== removedName);
   }
+
+  // 2. Retrouver le modèle supprimé pour connaître ses articles
+  const removedTpl = templates.find(t => t.name === removedName);
+  if (removedTpl && removedTpl.items) {
+    const itemsToRemove = new Set(removedTpl.items.map(it => it.trim().toLowerCase()));
+
+    // 3. Lister tous les articles encore requis par les modèles qui restent sur la fiche
+    const itemsToKeep = new Set();
+    f.usedTemplates.forEach(remainingName => {
+      const remainingTpl = templates.find(t => t.name === remainingName);
+      if (remainingTpl && remainingTpl.items) {
+        remainingTpl.items.forEach(it => itemsToKeep.add(it.trim().toLowerCase()));
+      }
+    });
+
+    // 4. Ne supprimer de la checklist que ce qui venait du modèle retiré ET n'est pas gardé ailleurs
+    f.checklist = f.checklist.filter(chk => {
+      const txt = chk.text.trim().toLowerCase();
+      if (itemsToRemove.has(txt) && !itemsToKeep.has(txt)) {
+        return false; // Supprimé
+      }
+      return true; // Conservé (commun à une autre tâche ou ajouté manuellement)
+    });
+  }
+
   save();
   openFiche(currentId);
 }
@@ -590,17 +628,6 @@ function updateProcessSelectCount() { const el = document.getElementById('proces
 function deleteSelectedProcess() { if (!selectedProcessItems.size) return; openConfirmModal(`Supprimer ${selectedProcessItems.size} élément(s) ?`, 'Cette action est irréversible.', () => { const f = getFiche(); f.process = f.process.filter((_, i) => !selectedProcessItems.has(i)); selectedProcessItems.clear(); processSelectModeActive = false; save(); openFiche(currentId); }); }
 function toggleSection(bodyId, btnId) { const body = document.getElementById(bodyId); const btn = document.getElementById(btnId); const open = body.style.display !== 'none'; body.style.display = open ? 'none' : 'block'; btn.style.transform = open ? 'rotate(-90deg)' : 'rotate(0deg)'; const f = getFiche(); if (!f) return; if (!f.sections) f.sections = {}; const key = bodyId.replace('Body', ''); f.sections[key] = !open; save(); }
 function retourAListe() { document.body.classList.remove('show-detail'); currentId = null; renderSidebar(); window.scrollTo(0, 0); document.getElementById('mainContent').innerHTML = `<div class="empty-state"><div class="icon">🗂</div><h2>Aucune fiche ouverte</h2><p>Créez une nouvelle fiche de client/chantier pour démarrer.</p></div>`; }
-function sortTplItems(type, ti) {
-  const arr = type === 'process' ? processModels : templates;
-  const prefix = type === 'process' ? 'proc' : 'tpl';
-  arr[ti].items.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base', numeric: true }));
-  save();
-  const tmp = document.createElement('div');
-  tmp.innerHTML = renderTemplateCard(arr[ti], ti, type);
-  document.getElementById(`${prefix}card-${ti}`).replaceWith(tmp.firstElementChild);
-  document.getElementById(`${prefix}body-${ti}`).style.display = 'block';
-  document.getElementById(`${prefix}chev-${ti}`).classList.add('open');
-}
 window.onload = loadFromServer;
 </script>
 </body>
