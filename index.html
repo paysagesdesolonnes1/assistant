@@ -246,12 +246,13 @@ function loadFromServer() {
   fetch(SCRIPT_URL + "?action=getData")
     .then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
     .then(data => {
+      .then(data => {
       fiches = data.fiches || [];
       templates = data.templates || [];
-      templates.forEach(t => t.items && t.items.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base', numeric: true })));
       processModels = data.processModels || [];
       outils = data.outils || [];
       noteGenerale = data.noteGenerale || "";
+      sortAllTemplates();
       loaded = true;
       setSyncBar(false);
       showSync('✓ Connecté', 'ok');
@@ -321,6 +322,13 @@ function confirmNew() {
   fiches.unshift(fiche); save(); renderSidebar(); openFiche(fiche.id); closeNewModal();
 }
 function openTemplatesPage() { currentId = null; renderSidebar(); renderTemplatesPage(); document.body.classList.add('show-detail'); }
+
+function sortAllTemplates() {
+  const byName = (a, b) => (a.name || '').localeCompare(b.name || '', 'fr', { sensitivity: 'base', numeric: true });
+  templates.sort(byName);
+  processModels.sort(byName);
+}
+  
 function renderTemplatesPage() {
   document.getElementById('mainContent').innerHTML = `
   <div class="tpl-page">
@@ -475,8 +483,16 @@ function pickOutilForTemplate(ti, val) {
   
 function renderTplItem(prefix, ti, ii, text, type) { return `<div class="tpl-item" id="${prefix}item-${ti}-${ii}"><span class="tpl-item-drag">⠿</span><input type="text" value="${escHtml(text)}" placeholder="Point..." oninput="updateTplItem('${type}', ${ti}, ${ii}, this.value)"><button class="btn-remove-item" onclick="removeTplItem('${type}', ${ti}, ${ii})" title="Supprimer">×</button></div>`; }
 function toggleTplCard(prefix, ti) { const body = document.getElementById(`${prefix}body-${ti}`); const chev = document.getElementById(`${prefix}chev-${ti}`); const open = body.style.display !== 'none'; body.style.display = open ? 'none' : 'block'; chev.classList.toggle('open', !open); }
-function createNewTemplate(type) { if (type === 'process') processModels.push({ name: "Nouveau process", items: [] }); else templates.push({ name: "Nouveau modèle", items: [], note: "" }); save(); renderTemplatesPage(); }
+function createNewTemplate(type) {
+  if (type === 'process') processModels.push({ name: "Nouveau process", items: [] });
+  else templates.push({ name: "Nouveau modèle", items: [], note: "" });
+  sortAllTemplates();
+  save();
+  renderTemplatesPage();
+}
+  
 function deleteTemplate(type, ti) { const arr = type === 'process' ? processModels : templates; openConfirmModal(`Supprimer "${arr[ti].name}" ?`, 'Ce modèle sera supprimé définitivement.', () => { arr.splice(ti, 1); save(); renderTemplatesPage(); }); }
+
 function duplicateTemplate(type, ti) {
   const arr = type === 'process' ? processModels : templates;
   const orig = arr[ti];
@@ -489,10 +505,18 @@ function duplicateTemplate(type, ti) {
     copie.note = orig.note || "";
   }
   arr.splice(ti + 1, 0, copie);
+  sortAllTemplates();
   save();
   renderTemplatesPage();
 }
-function updateTemplateName(type, ti, name) { if (type === 'process') processModels[ti].name = name; else templates[ti].name = name; save(); }
+  
+function updateTemplateName(type, ti, name) {
+  if (type === 'process') processModels[ti].name = name;
+  else templates[ti].name = name;
+  sortAllTemplates();
+  save();
+}
+  
 function addTplItem(type, ti) {
   const prefix = type === 'process' ? 'proc' : 'tpl';
   const arr = type === 'process' ? processModels : templates;
