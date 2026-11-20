@@ -246,7 +246,6 @@ function loadFromServer() {
   fetch(SCRIPT_URL + "?action=getData")
     .then(res => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
     .then(data => {
-      .then(data => {
       fiches = data.fiches || [];
       templates = data.templates || [];
       processModels = data.processModels || [];
