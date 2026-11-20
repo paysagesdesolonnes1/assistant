@@ -226,6 +226,7 @@ let loaded = false;
 let fiches = [];
 let templates = [];
 let processModels = [];
+let outils = [];
 let currentId = null;
 let saveTimer = null;
 
@@ -247,6 +248,7 @@ function loadFromServer() {
       fiches = data.fiches || [];
       templates = data.templates || [];
       processModels = data.processModels || [];
+      outils = data.outils || [];
       loaded = true;
       setSyncBar(false);
       showSync('✓ Connecté', 'ok');
@@ -271,7 +273,7 @@ function save() {
     setSyncBar(true);
     fetch(SCRIPT_URL, {
       method: 'POST',
-      body: JSON.stringify({ fiches, templates, processModels })
+      body: JSON.stringify({ fiches, templates, processModels, outils })
     })
     .then(res => res.json())
     .then(res => {
@@ -310,14 +312,133 @@ function confirmNew() {
 }
 function openTemplatesPage() { currentId = null; renderSidebar(); renderTemplatesPage(); document.body.classList.add('show-detail'); }
 function renderTemplatesPage() {
-  document.getElementById('mainContent').innerHTML = `<div class="tpl-page"><div class="tpl-header"><h2>⚙ Gérer les modèles</h2><button class="btn-cancel" onclick="backToFiches()" style="font-family:'Syne',sans-serif;">← Retour</button></div><div class="tpl-page-section"><div class="tpl-page-section-header open" id="tplSecHeaderChecklist" onclick="toggleTplPageSection('Checklist')"><span class="tpl-page-section-title">✅ Modèles de checklist</span><span class="tpl-chevron open" id="tplSecChevChecklist">▼</span></div><div class="tpl-page-section-body" id="tplSecBodyChecklist"><div class="tpl-grid" id="tplGrid">${templates.map((t, ti) => renderTemplateCard(t, ti, 'checklist')).join('')}</div><button class="btn-new-tpl" onclick="createNewTemplate('checklist')">+ Nouveau modèle checklist</button></div></div><div class="tpl-page-section"><div class="tpl-page-section-header open" id="tplSecHeaderProcess" onclick="toggleTplPageSection('Process')"><span class="tpl-page-section-title process">📋 Modèles de process</span><span class="tpl-chevron open" id="tplSecChevProcess">▼</span></div><div class="tpl-page-section-body" id="tplSecBodyProcess"><div class="tpl-grid" id="processGrid">${processModels.map((t, ti) => renderTemplateCard(t, ti, 'process')).join('')}</div><button class="btn-new-tpl process" onclick="createNewTemplate('process')">+ Nouveau modèle process</button></div></div></div>`;
+  document.getElementById('mainContent').innerHTML = `
+  <div class="tpl-page">
+    <div class="tpl-header">
+      <h2>⚙ Gérer les modèles</h2>
+      <button class="btn-cancel" onclick="backToFiches()" style="font-family:'Syne',sans-serif;">← Retour</button>
+    </div>
+
+    <!-- NOUVELLE SECTION : CATALOGUE D'OUTILS -->
+    <div class="tpl-page-section">
+      <div class="tpl-page-section-header open" id="tplSecHeaderOutils" onclick="toggleTplPageSection('Outils')">
+        <span class="tpl-page-section-title" style="color:var(--green);">🧰 Catalogue d'outils & matériel (${outils.length})</span>
+        <span class="tpl-chevron open" id="tplSecChevOutils">▼</span>
+      </div>
+      <div class="tpl-page-section-body" id="tplSecBodyOutils">
+        <div class="tpl-add-row" style="margin-top:0; margin-bottom:14px;">
+          <input class="tpl-add-input" id="newOutilInput" placeholder="Ajouter un outil au catalogue (ex: Tronçonneuse, Râteau...)" onkeydown="if(event.key==='Enter') addOutil()">
+          <button class="btn-add" style="color:var(--green);" onclick="addOutil()">+ Ajouter</button>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;" id="outilsCatalogueList">
+          ${outils.length ? outils.map((o, idx) => `
+            <span style="display:inline-flex; align-items:center; gap:6px; background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:5px 12px; font-family:'IBM Plex Mono',monospace; font-size:.8rem;">
+              ${escHtml(o)}
+              <button onclick="removeOutil(${idx})" style="background:none; border:none; color:var(--red); cursor:pointer; font-size:1rem; line-height:1; padding:0;" title="Supprimer">×</button>
+            </span>
+          `).join('') : '<p style="color:var(--muted); font-size:.82rem;">Aucun outil enregistré dans le catalogue.</p>'}
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION MODÈLES DE CHECKLIST -->
+    <div class="tpl-page-section">
+      <div class="tpl-page-section-header open" id="tplSecHeaderChecklist" onclick="toggleTplPageSection('Checklist')">
+        <span class="tpl-page-section-title">✅ Modèles de checklist</span>
+        <span class="tpl-chevron open" id="tplSecChevChecklist">▼</span>
+      </div>
+      <div class="tpl-page-section-body" id="tplSecBodyChecklist">
+        <div class="tpl-grid" id="tplGrid">${templates.map((t, ti) => renderTemplateCard(t, ti, 'checklist')).join('')}</div>
+        <button class="btn-new-tpl" onclick="createNewTemplate('checklist')">+ Nouveau modèle checklist</button>
+      </div>
+    </div>
+
+    <!-- SECTION MODÈLES DE PROCESS -->
+    <div class="tpl-page-section">
+      <div class="tpl-page-section-header open" id="tplSecHeaderProcess" onclick="toggleTplPageSection('Process')">
+        <span class="tpl-page-section-title process">📋 Modèles de process</span>
+        <span class="tpl-chevron open" id="tplSecChevProcess">▼</span>
+      </div>
+      <div class="tpl-page-section-body" id="tplSecBodyProcess">
+        <div class="tpl-grid" id="processGrid">${processModels.map((t, ti) => renderTemplateCard(t, ti, 'process')).join('')}</div>
+        <button class="btn-new-tpl process" onclick="createNewTemplate('process')">+ Nouveau modèle process</button>
+      </div>
+    </div>
+  </div>`;
 }
 function toggleTplPageSection(cap) { const body = document.getElementById('tplSecBody' + cap); const chev = document.getElementById('tplSecChev' + cap); const header = document.getElementById('tplSecHeader' + cap); const open = body.style.display !== 'none'; body.style.display = open ? 'none' : 'block'; chev.classList.toggle('open', !open); header.classList.toggle('open', !open); }
 function renderTemplateCard(t, ti, type) {
   const prefix = type === 'process' ? 'proc' : 'tpl';
-  return `<div class="tpl-card" id="${prefix}card-${ti}"><div class="tpl-card-header" onclick="toggleTplCard('${prefix}', ${ti})"><div class="tpl-card-name"><input type="text" value="${escHtml(t.name)}" placeholder="Nom du modèle..." onclick="event.stopPropagation()" oninput="updateTemplateName('${type}', ${ti}, this.value)"></div><div class="tpl-card-actions"><span style="font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--muted);">${t.items.length} point${t.items.length > 1 ? 's' : ''}</span>
-  ${type === 'checklist' ? `<button class="btn-tpl-delete" onclick="event.stopPropagation();sortTplItems('checklist', ${ti})">A→Z</button>` : ''}<button class="btn-tpl-delete" onclick="event.stopPropagation();deleteTemplate('${type}', ${ti})">Supprimer</button><span class="tpl-chevron" id="${prefix}chev-${ti}">▼</span></div></div><div class="tpl-card-body" id="${prefix}body-${ti}" style="display:none;"><div class="tpl-items" id="${prefix}items-${ti}">${t.items.map((item, ii) => renderTplItem(prefix, ti, ii, item, type)).join('')}</div><div class="tpl-add-row"><input class="tpl-add-input" id="${prefix}add-${ti}" placeholder="Nouveau point..." onkeydown="if(event.key==='Enter') addTplItem('${type}', ${ti})"><button class="btn-add" onclick="addTplItem('${type}', ${ti})">+ Ajouter</button></div></div></div>`;
+  
+  // Menu déroulant pour piocher dans les outils (uniquement pour les checklists)
+  const pickerHtml = (type === 'checklist' && outils.length > 0) ? `
+    <div class="tpl-add-row" style="margin-top:12px;">
+      <select class="tpl-add-input" id="pickOutil-${ti}" onchange="pickOutilForTemplate(${ti}, this.value)" style="cursor:pointer;">
+        <option value="">🧰 Piocher un outil dans le catalogue...</option>
+        ${outils.map(o => `<option value="${escHtml(o)}">${escHtml(o)}</option>`).join('')}
+      </select>
+    </div>
+  ` : '';
+
+  return `<div class="tpl-card" id="${prefix}card-${ti}">
+    <div class="tpl-card-header" onclick="toggleTplCard('${prefix}', ${ti})">
+      <div class="tpl-card-name"><input type="text" value="${escHtml(t.name)}" placeholder="Nom du modèle..." onclick="event.stopPropagation()" oninput="updateTemplateName('${type}', ${ti}, this.value)"></div>
+      <div class="tpl-card-actions">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--muted);">${t.items.length} point${t.items.length > 1 ? 's' : ''}</span>
+        ${type === 'checklist' ? `<button class="btn-tpl-delete" onclick="event.stopPropagation();sortTplItems('checklist', ${ti})">A→Z</button>` : ''}
+        <button class="btn-tpl-delete" onclick="event.stopPropagation();deleteTemplate('${type}', ${ti})">Supprimer</button>
+        <span class="tpl-chevron" id="${prefix}chev-${ti}">▼</span>
+      </div>
+    </div>
+    <div class="tpl-card-body" id="${prefix}body-${ti}" style="display:none;">
+      <div class="tpl-items" id="${prefix}items-${ti}">${t.items.map((item, ii) => renderTplItem(prefix, ti, ii, item, type)).join('')}</div>
+      ${pickerHtml}
+      <div class="tpl-add-row">
+        <input class="tpl-add-input" id="${prefix}add-${ti}" placeholder="Ou saisir un point manuellement..." onkeydown="if(event.key==='Enter') addTplItem('${type}', ${ti})">
+        <button class="btn-add" onclick="addTplItem('${type}', ${ti})">+ Ajouter</button>
+      </div>
+    </div>
+  </div>`;
 }
+
+function addOutil() {
+  const input = document.getElementById('newOutilInput');
+  const val = input.value.trim();
+  if (!val) return;
+  if (!outils.some(o => o.toLowerCase() === val.toLowerCase())) {
+    outils.push(val);
+    outils.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base', numeric: true }));
+    save();
+  }
+  renderTemplatesPage();
+  setTimeout(() => {
+    const newInp = document.getElementById('newOutilInput');
+    if (newInp) newInp.focus();
+  }, 50);
+}
+
+function removeOutil(idx) {
+  outils.splice(idx, 1);
+  save();
+  renderTemplatesPage();
+}
+
+function pickOutilForTemplate(ti, val) {
+  if (!val) return;
+  // Évite d'ajouter deux fois le même outil dans le modèle
+  if (!templates[ti].items.some(it => it.toLowerCase() === val.toLowerCase())) {
+    templates[ti].items.push(val);
+    save();
+  }
+  // Rafraîchit la carte du modèle en la gardant ouverte
+  const cardEl = document.getElementById(`tplcard-${ti}`);
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderTemplateCard(templates[ti], ti, 'checklist');
+  cardEl.replaceWith(tmp.firstElementChild);
+  document.getElementById(`tplbody-${ti}`).style.display = 'block';
+  document.getElementById(`tplchev-${ti}`).classList.add('open');
+}
+  
 function renderTplItem(prefix, ti, ii, text, type) { return `<div class="tpl-item" id="${prefix}item-${ti}-${ii}"><span class="tpl-item-drag">⠿</span><input type="text" value="${escHtml(text)}" placeholder="Point..." oninput="updateTplItem('${type}', ${ti}, ${ii}, this.value)"><button class="btn-remove-item" onclick="removeTplItem('${type}', ${ti}, ${ii})" title="Supprimer">×</button></div>`; }
 function toggleTplCard(prefix, ti) { const body = document.getElementById(`${prefix}body-${ti}`); const chev = document.getElementById(`${prefix}chev-${ti}`); const open = body.style.display !== 'none'; body.style.display = open ? 'none' : 'block'; chev.classList.toggle('open', !open); }
 function createNewTemplate(type) { if (type === 'process') processModels.push({ name: "Nouveau process", items: [] }); else templates.push({ name: "Nouveau modèle", items: [] }); save(); renderTemplatesPage(); }
@@ -364,7 +485,7 @@ function updateCalcSurface() { const l = document.getElementById('calc-l').value
 function updateCalcVolume() { const s = document.getElementById('calc-s').value; const h = document.getElementById('calc-h').value; const volume = calcVolume(s, h); document.getElementById('res-volume').textContent = volume; const f = getFiche(); f.calculs.volume = { s, h }; save(); if (volume !== '—') { const v = document.getElementById('calc-vol-t'); if (v) { v.value = volume; updateCalcTonnage(); } } }
 function updateCalcTonnage() { const vol = document.getElementById('calc-vol-t').value; const densite = document.getElementById('calc-densite').value; document.getElementById('res-tonnage').textContent = calcTonnage(vol, densite); document.getElementById('res-tonnes').textContent = calcTonnes(vol, densite); const f = getFiche(); f.calculs.densite = densite; save(); }
 function updateCalcCustom(value) { const f = getFiche(); f.calculs.custom = value; save(); }
-function forceSave() { clearTimeout(saveTimer); if (!loaded) return; setSyncBar(true); const data = { fiches, templates, processModels }; fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(data) }).then(res => res.json()).then(res => { setSyncBar(false); showSync('✓ Connecté', 'ok'); document.getElementById('loadingScreen').style.display = 'none'; renderSidebar(); }).catch(() => { setSyncBar(false); showSync('✗ Erreur', 'err'); }); const msg = document.getElementById('saveMsg'); if (msg) { msg.classList.add('visible'); setTimeout(() => msg.classList.remove('visible'), 2000); } }
+function forceSave() { clearTimeout(saveTimer); if (!loaded) return; setSyncBar(true); const data = { fiches, templates, processModels, outils }; fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(data) }).then(res => res.json()).then(res => { setSyncBar(false); showSync('✓ Connecté', 'ok'); document.getElementById('loadingScreen').style.display = 'none'; renderSidebar(); }).catch(() => { setSyncBar(false); showSync('✗ Erreur', 'err'); }); const msg = document.getElementById('saveMsg'); if (msg) { msg.classList.add('visible'); setTimeout(() => msg.classList.remove('visible'), 2000); } }
 function deleteFiche(id) { openConfirmModal('Supprimer cette fiche ?', 'Cette action est irréversible.', () => { fiches = fiches.filter(x => x.id !== id); currentId = null; save(); renderSidebar(); retourAListe(); document.getElementById('mainContent').innerHTML = `<div class="empty-state"><div class="icon">🗂</div><h2>Aucune fiche ouverte</h2><p>Créez une nouvelle fiche de client/chantier pour démarrer.</p></div>`; }); }
 function openConfirmModal(title, msg, onConfirm) { document.getElementById('confirmTitle').textContent = title; document.getElementById('confirmMsg').textContent = msg; document.getElementById('confirmModal').style.display = 'flex'; document.getElementById('confirmOk').onclick = () => { closeConfirmModal(); onConfirm(); }; }
 function closeConfirmModal() { document.getElementById('confirmModal').style.display = 'none'; }
